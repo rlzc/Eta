@@ -92,12 +92,12 @@ internal fun CharacterDetailScreen(
         item(key = "active-assistant") {
             EtaPreferenceGroup {
                 EtaSwitchPreference(
-                    title = "作为默认助手",
+                    title = "作为当前角色",
                     summary =
                         if (store.activeCharacterId == id) {
-                            "新建对话与系统入口默认使用此角色"
+                            "新建对话与系统入口使用此角色"
                         } else {
-                            "当前默认助手是其他角色"
+                            "当前角色是其他角色"
                         },
                     checked = store.activeCharacterId == id,
                     onCheckedChange = { checked ->

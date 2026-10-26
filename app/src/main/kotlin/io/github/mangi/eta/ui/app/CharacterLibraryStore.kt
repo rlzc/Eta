@@ -105,7 +105,7 @@ internal class CharacterLibraryStore(
             ?.putString(Prefs.Keys.ACTIVE_CHARACTER_ID, id)
             ?.apply()
         activeCharacterId = id
-        notice = if (id == null) "已取消默认助手角色" else "已将角色设为默认助手"
+        notice = if (id == null) "已取消当前角色" else "已切换当前角色"
     }
 
     fun dismissNotice() { notice = null }
