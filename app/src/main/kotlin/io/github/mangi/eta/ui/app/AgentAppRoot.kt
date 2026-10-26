@@ -275,9 +275,18 @@ fun AgentAppRoot(
 
     fun createConversation() {
         focusManager.clearFocus()
-        agentState.createConversation()
-        navigator.popToHome()
-        conversationPaneOpen = false
+        characterStore.loadActiveCharacter()
+        val activeId = characterStore.activeCharacterId
+        if (activeId == null) {
+            // 还没有选定默认角色：先去角色库挑一张卡。
+            pushRoute(AppRoute.Characters)
+            return
+        }
+        characterStore.startConversation(activeId) { binding, greeting ->
+            agentState.startCharacterConversation(binding, greeting)
+            navigator.popToHome()
+            conversationPaneOpen = false
+        }
     }
 
     fun openConversationBrowser() {

@@ -17,6 +17,7 @@ import io.github.mangi.eta.agent.roleplay.CharacterCardFormat
 import io.github.mangi.eta.agent.roleplay.CharacterProfile
 import io.github.mangi.eta.agent.roleplay.RoleplayBinding
 import io.github.mangi.eta.agent.roleplay.UserPersona
+import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.data.repository.AgentMemorySnapshot
 import io.github.mangi.eta.data.repository.AgentMemoryWriteResult
@@ -59,6 +60,9 @@ internal class CharacterLibraryStore(
         private set
     var memorySpaceDraft by mutableStateOf("")
         private set
+    /** 当前作为默认助手的角色卡；为空时新建对话会引导去角色库。 */
+    var activeCharacterId by mutableStateOf<String?>(null)
+        private set
     var busy by mutableStateOf(false)
         private set
     var notice by mutableStateOf<String?>(null)
@@ -83,8 +87,25 @@ internal class CharacterLibraryStore(
         }
 
     fun loadLibrary() = runOperation("角色库读取失败，请重试", queueIfBusy = true) {
+        loadActiveCharacter()
         io { CharacterRepository.ensureDefaultCharacter() }
         characters = io { CharacterRepository.list() }
+    }
+
+    fun loadActiveCharacter() {
+        activeCharacterId =
+            Prefs.localAgentPreferences()
+                ?.getString(Prefs.Keys.ACTIVE_CHARACTER_ID, null)
+                ?.takeIf { it.isNotBlank() }
+    }
+
+    fun setActiveCharacter(id: String?) {
+        Prefs.localAgentPreferences()
+            ?.edit()
+            ?.putString(Prefs.Keys.ACTIVE_CHARACTER_ID, id)
+            ?.apply()
+        activeCharacterId = id
+        notice = if (id == null) "已取消默认助手角色" else "已将角色设为默认助手"
     }
 
     fun dismissNotice() { notice = null }

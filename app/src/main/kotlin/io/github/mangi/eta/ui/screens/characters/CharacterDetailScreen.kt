@@ -89,6 +89,23 @@ internal fun CharacterDetailScreen(
                 EtaArrowPreference(title = "编辑我的人设", onClick = { onNavigate(AppRoute.CharacterPersona) })
             }
         }
+        item(key = "active-assistant") {
+            EtaPreferenceGroup {
+                EtaSwitchPreference(
+                    title = "作为默认助手",
+                    summary =
+                        if (store.activeCharacterId == id) {
+                            "新建对话与系统入口默认使用此角色"
+                        } else {
+                            "当前默认助手是其他角色"
+                        },
+                    checked = store.activeCharacterId == id,
+                    onCheckedChange = { checked ->
+                        store.setActiveCharacter(if (checked) id else null)
+                    },
+                )
+            }
+        }
         item(key = "greetings-title") { EtaPreferenceGroupTitle("开场白") }
         item(key = "greetings") {
             // 预览与开始对话后看到的文本一致：宏按当前是否使用人设展开。
