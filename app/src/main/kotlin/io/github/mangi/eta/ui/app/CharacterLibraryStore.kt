@@ -60,7 +60,7 @@ internal class CharacterLibraryStore(
         private set
     var memorySpaceDraft by mutableStateOf("")
         private set
-    /** 当前作为默认助手的角色卡；为空时新建对话会引导去角色库。 */
+    /** 当前角色卡：它就是应用助手本身；为空时新建对话会引导去角色库。 */
     var activeCharacterId by mutableStateOf<String?>(null)
         private set
     var busy by mutableStateOf(false)

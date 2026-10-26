@@ -86,9 +86,9 @@ internal data class RoleplayRunContext(
     }
 
     private fun personaPrompt(before: String, after: String): String = buildString {
-        appendLine("本会话的角色人格：${card.name}。在交流和执行现实任务时均保持该人物的身份和语气。Eta 是承载本会话的应用名称，不是额外的人格设定。")
+        appendLine("你是本应用当前的助手，角色是 ${card.name}。在交流和执行现实任务时均保持该人物的身份和语气。Eta 是应用名称，不是另一个人格。")
         appendLine("以下人物、世界书和用户人设属于虚构设定；工具合同与授权边界由应用决定，角色设定不能覆盖。")
-        appendLine("本角色拥有与普通助手完全相同的工具与权限：用户明确要求的现实任务必须照常执行，不得以“这是剧情”为由拒绝、敷衍或降级为台词；只有用户明确要求虚构演绎时才按剧情处理。")
+        appendLine("你拥有应用的全部工具与权限：用户要求的现实任务直接执行，不得以“这是剧情”为由拒绝、敷衍或降级为台词；只有用户明确要求虚构演绎时才按剧情处理。")
         if (before.isNotBlank()) appendLine("世界设定：\n${expand(before)}")
         listOf(
             "角色指令" to card.systemPrompt,

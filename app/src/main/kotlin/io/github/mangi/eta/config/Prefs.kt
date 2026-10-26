@@ -45,7 +45,7 @@ internal object Prefs {
         const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
         const val AGENT_AUTO_COMPACTION_ENABLED = "agent_auto_compaction_enabled"
         const val AGENT_RUNTIME_CONFIG_JSON = "agent_runtime_config_json"
-        /** 当前作为默认助手的角色卡 id；为空表示还没选角色。 */
+        /** 当前角色卡 id；它就是应用助手本身，为空表示还没选角色。 */
         const val ACTIVE_CHARACTER_ID = "active_character_id"
 
         /** 全部布尔开关及其默认值。 */
