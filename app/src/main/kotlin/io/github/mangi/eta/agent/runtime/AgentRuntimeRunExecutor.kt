@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.runtime
 
 import android.content.Context
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityKeeper
+import io.github.mangi.eta.agent.browser.BrowserSessionRegistry
 import io.github.mangi.eta.agent.model.AgentConversationCodec
 import io.github.mangi.eta.agent.model.AgentConversationToolCatalog
 import io.github.mangi.eta.agent.tool.ConversationHistoryTool
@@ -50,6 +51,7 @@ internal class AgentRuntimeRunExecutor(
     context: Context,
     private val currentPermissions: () -> AgentRuntimePolicy.Permissions,
     private val snapshotRequest: (AgentRuntimeWire.RunRequest) -> AgentRuntimeWire.RunRequest,
+    private val guiControl: GuiControlCoordinator,
     private val onAcceptedEvent: (AgentEvent, EntrySurfaceGuard?) -> Unit,
     private val persistArtifacts: (
         AgentRuntimeWire.RunRequest,
@@ -76,6 +78,8 @@ internal class AgentRuntimeRunExecutor(
         var entrySurfaceGuard: EntrySurfaceGuard? = null
         var toolExecutor: AutoCloseable? = null
         var toolsBinding: AgentRunController.ResourceBinding? = null
+        var guiRun: GuiControlCoordinator.RunControl? = null
+        var browserBinding: AutoCloseable? = null
         var response: AgentModelClient.ModelResponse.Text? = null
         var cancelled = false
         var checkpointRecorder: AgentRunCheckpointRecorder? = null
@@ -166,6 +170,14 @@ internal class AgentRuntimeRunExecutor(
                 }
             }
             val mcpTools = JSONArray().also(mcpSnapshot::appendModelTools)
+            val browserKey = AgentConversationIdentity.fromHandoff(request.handoff, request.runId)
+            browserBinding = BrowserSessionRegistry.acquireRun(browserKey, request.runId)
+            guiRun = guiControl.openRun(request.runId, runController) { status ->
+                acceptEvent(
+                    session, AgentEvent.GuiControlChanged(status), archivedEvents,
+                    entrySurfaceGuard, checkpointRecorder,
+                )
+            }
             val memoryLibrarySpaceId =
                 roleplayContext?.memorySpaceId ?: MemoryRepository.GLOBAL_SPACE_ID
             val memoryLibraryTools =
@@ -188,6 +200,8 @@ internal class AgentRuntimeRunExecutor(
                 context = appContext,
                 logger = AndroidAgentLogger,
                 browserRunId = request.runId,
+                browserSession = BrowserSessionRegistry.get(browserKey),
+                guiControl = guiRun,
                 browserToolsEnabled = {
                     request.config.browserTools && currentPermissions().browserTools
                 },
@@ -384,6 +398,8 @@ internal class AgentRuntimeRunExecutor(
         } finally {
             runCatching { toolsBinding?.close() }
             runCatching { toolExecutor?.close() }
+            runCatching { guiRun?.close() }
+            runCatching { browserBinding?.close() }
         }
 
         if (cancelled && session.isTerminal) {
@@ -466,7 +482,7 @@ internal class AgentRuntimeRunExecutor(
     ) {
         checkpointRecorder?.accept(event)
         if (!session.emit(event)) return
-        archivedEvents?.add(event)
+        if (event !is AgentEvent.GuiControlChanged) archivedEvents?.add(event)
         if (event is AgentEvent.ModelRetryScheduled) {
             AndroidAgentLogger.warn("Agent runtime event: ${event.toLogLine()}")
         } else if (event !is AgentEvent.AssistantBlockDelta) {
