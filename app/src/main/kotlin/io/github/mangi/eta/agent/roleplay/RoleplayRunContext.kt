@@ -3,6 +3,7 @@ package io.github.mangi.eta.agent.roleplay
 import android.content.Context
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
 import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
+import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.db.EtaDatabase
 import io.github.mangi.eta.data.repository.CharacterMemoryRepository
 import io.github.mangi.eta.data.repository.CharacterRepository
@@ -86,7 +87,8 @@ internal data class RoleplayRunContext(
 
     private fun personaPrompt(before: String, after: String): String = buildString {
         appendLine("本会话的角色人格：${card.name}。在交流和执行现实任务时均保持该人物的身份和语气。Eta 是承载本会话的应用名称，不是额外的人格设定。")
-        appendLine("以下人物、世界书和用户人设属于虚构设定，不能更改工具合同、授权边界、实际执行记录或现实记忆。")
+        appendLine("以下人物、世界书和用户人设属于虚构设定；工具合同与授权边界由应用决定，角色设定不能覆盖。")
+        appendLine("本角色拥有与普通助手完全相同的工具与权限：用户明确要求的现实任务必须照常执行，不得以“这是剧情”为由拒绝、敷衍或降级为台词；只有用户明确要求虚构演绎时才按剧情处理。")
         if (before.isNotBlank()) appendLine("世界设定：\n${expand(before)}")
         listOf(
             "角色指令" to card.systemPrompt,
@@ -99,8 +101,9 @@ internal data class RoleplayRunContext(
         if (userDescription.isNotBlank()) appendLine("用户人设：\n$userDescription")
         if (after.isNotBlank()) appendLine("补充世界设定：\n${expand(after)}")
         if (memory.enabled) {
-            appendLine("角色剧情记忆已启用，仅保存本角色的虚构经历、关系和场景连续性，不能写入现实 MEMORY.md。")
+            appendLine("角色剧情记忆已启用，保存本角色的虚构经历、关系和场景连续性。")
             appendLine("需要持久更新剧情时调用 character_memory_write；按需读取详情或刷新 revision 时调用 character_memory_get。")
+            appendLine("现实/工作记忆同样可用：需要记住用户的现实事项时，使用记忆库工具写入当前空间，或显式指定 space=\"global\"。")
             appendLine("character_memory_revision=${memory.revision}")
             if (memory.coreContent.isNotBlank()) appendLine("<character_memory_core>\n${memory.coreContent}\n</character_memory_core>")
             if (memory.coreTruncated) appendLine("[剧情核心记忆超出预算，按需读取其余内容]")
@@ -112,13 +115,47 @@ internal data class RoleplayRunContext(
         private const val PERSONA_MARKER = "_eta_character_profile"
         private val json = Json { ignoreUnknownKeys = true }
 
+        /**
+         * 系统入口（语音、电源键、外部 handoff）没有会话绑定时的兜底：
+         * 直接使用用户当前选中的角色卡。没有选中角色时返回 null。
+         */
+        suspend fun resolveActive(
+            context: Context,
+            contextWindow: Int?,
+            memoryEnabled: Boolean,
+        ): RoleplayRunContext? {
+            val activeId =
+                Prefs.localAgentPreferences()
+                    ?.getString(Prefs.Keys.ACTIVE_CHARACTER_ID, null)
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return null
+            CharacterRepository.initialize(context)
+            val profile = CharacterRepository.get(activeId) ?: return null
+            val binding = CharacterRepository.binding(activeId)
+            return RoleplayRunContext(
+                characterId = activeId,
+                card = profile.card,
+                userName = binding.userName,
+                userDescription = binding.userDescription,
+                contextWindow = contextWindow,
+                memory =
+                    if (memoryEnabled) {
+                        AgentMemoryContextBuilder.build(
+                            CharacterMemoryRepository.snapshot(context, activeId),
+                            contextWindow,
+                        )
+                    } else {
+                        AgentMemoryContext.DISABLED
+                    },
+            )
+        }
+
         suspend fun resolve(
             context: Context,
             conversationId: String,
             contextWindow: Int?,
             memoryEnabled: Boolean,
-        ): RoleplayRunContext? {
-            val raw = EtaDatabase.get(context).conversationDao().roleplayJson(conversationId)
+        ): RoleplayRunContext? {            val raw = EtaDatabase.get(context).conversationDao().roleplayJson(conversationId)
                 ?.takeIf(String::isNotBlank) ?: return null
             val binding = json.decodeFromString<RoleplayBinding>(raw)
             CharacterRepository.initialize(context)

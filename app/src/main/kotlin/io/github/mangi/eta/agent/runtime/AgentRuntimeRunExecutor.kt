@@ -119,15 +119,21 @@ internal class AgentRuntimeRunExecutor(
             val conversationId = uiPayload?.conversationId
                 ?.takeIf { it.isNotBlank() }
             memoryConversationId = conversationId
-            val roleplayContext = conversationId?.let { id ->
-                runBlocking { RoleplayRunContext.resolve(appContext, id, contextWindow, memoryEnabled) }
-            }
+            val roleplayContext =
+                conversationId?.let { id ->
+                    runBlocking { RoleplayRunContext.resolve(appContext, id, contextWindow, memoryEnabled) }
+                } ?: runBlocking {
+                    // 系统入口（语音、电源键、外部 handoff）没有会话绑定：直接使用当前角色。
+                    RoleplayRunContext.resolveActive(appContext, contextWindow, memoryEnabled)
+                }
             if (request.operation == AgentRuntimeWire.OP_REWRITE_REPLY) {
                 require(roleplayContext != null) { "只有角色会话可以改写角色回复" }
+                val rewriteConversationId =
+                    requireNotNull(conversationId) { "缺少会话 id，无法改写角色回复" }
                 val target = request.rewriteTargetMessageId?.takeIf { it.isNotBlank() && it.length <= 256 }
                     ?: throw IllegalArgumentException("缺少有效的角色回复目标")
                 require(runBlocking {
-                    EtaDatabase.get(appContext).conversationDao().hasAssistantMessage(conversationId, target)
+                    EtaDatabase.get(appContext).conversationDao().hasAssistantMessage(rewriteConversationId, target)
                 }) { "角色回复目标不存在或不属于当前会话" }
             }
             val characterMemoryTools = roleplayContext?.let { roleplay ->
