@@ -58,6 +58,34 @@ internal data class CharacterCard(val raw: JsonObject) {
             ?: (raw["fav"] as? JsonPrimitive)?.booleanOrNull
             ?: false
 
+    /** 角色绑定的记忆空间；为空表示使用默认的 character:&lt;id&gt; 私有空间。 */
+    val memorySpaceId: String?
+        get() = (extensions["eta_memory_space"] as? JsonPrimitive)
+            ?.contentOrNull
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+
+    fun withMemorySpace(spaceId: String?): CharacterCard {
+        val updatedExtensions =
+            JsonObject(
+                extensions.toMutableMap().apply {
+                    if (spaceId.isNullOrBlank()) {
+                        remove("eta_memory_space")
+                    } else {
+                        put("eta_memory_space", JsonPrimitive(spaceId.trim()))
+                    }
+                },
+            )
+        val updatedData = JsonObject(data.toMutableMap().apply { put("extensions", updatedExtensions) })
+        return CharacterCard(
+            JsonObject(
+                raw.toMutableMap().apply {
+                    if (raw["data"] is JsonObject) put("data", updatedData) else put("extensions", updatedExtensions)
+                },
+            ),
+        )
+    }
+
     fun withFavorite(favorite: Boolean): CharacterCard {
         val updatedExtensions = JsonObject(extensions.toMutableMap().apply { put("fav", JsonPrimitive(favorite)) })
         val updatedData = JsonObject(data.toMutableMap().apply { put("extensions", updatedExtensions) })

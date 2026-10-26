@@ -25,8 +25,16 @@ import androidx.room.migration.Migration
         McpServerEntity::class,
         CharacterEntity::class,
         UserPersonaEntity::class,
+        MemorySpaceEntity::class,
+        MemoryEntity::class,
+        MemoryTagEntity::class,
+        MemoryTagRefEntity::class,
+        MemoryPropertyEntity::class,
+        MemoryLinkEntity::class,
+        MemoryChunkEntity::class,
+        MemoryAutoSaveCandidateEntity::class,
     ],
-    version = 23,
+    version = 25,
     exportSchema = false,
 )
 internal abstract class EtaDatabase : RoomDatabase() {
@@ -36,6 +44,9 @@ internal abstract class EtaDatabase : RoomDatabase() {
     abstract fun skillDao(): SkillDao
     abstract fun mcpServerDao(): McpServerDao
     abstract fun characterDao(): CharacterDao
+    abstract fun memoryDao(): MemoryDao
+    abstract fun memorySpaceDao(): MemorySpaceDao
+    abstract fun memoryAutoSaveDao(): MemoryAutoSaveDao
 
     companion object {
         @Volatile
@@ -66,6 +77,8 @@ internal abstract class EtaDatabase : RoomDatabase() {
                         MIGRATION_20_21,
                         MIGRATION_21_22,
                         MIGRATION_22_23,
+                        MIGRATION_23_24,
+                        MIGRATION_24_25,
                     )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) { createTextChunkCleanup(db) }
@@ -116,6 +129,95 @@ internal abstract class EtaDatabase : RoomDatabase() {
 
         internal val MIGRATION_22_23 = Migration(22, 23) { database ->
             database.execSQL("ALTER TABLE model_providers ADD COLUMN auth_mode TEXT NOT NULL DEFAULT 'api_key'")
+        }
+
+        /** 记忆库：空间、条目、标签、属性、链接、文档分块。 */
+        internal val MIGRATION_23_24 = Migration(23, 24) { database ->
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_spaces` (" +
+                    "`id` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                    "`auto_update_enabled` INTEGER NOT NULL, " +
+                    "`created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`id`))",
+            )
+            database.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_memory_spaces_name` ON `memory_spaces` (`name`)",
+            )
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memories` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`space_id` TEXT NOT NULL, `uuid` TEXT NOT NULL, " +
+                    "`title` TEXT NOT NULL, `content` TEXT NOT NULL, " +
+                    "`content_type` TEXT NOT NULL, `source` TEXT NOT NULL, " +
+                    "`credibility` REAL NOT NULL, `importance` REAL NOT NULL, " +
+                    "`folder_path` TEXT, `document_path` TEXT, " +
+                    "`is_document` INTEGER NOT NULL, `embedding` BLOB, " +
+                    "`created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, " +
+                    "`last_accessed_at` INTEGER NOT NULL)",
+            )
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memories_space_id` ON `memories` (`space_id`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memories_folder_path` ON `memories` (`folder_path`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memories_space_id_title` ON `memories` (`space_id`, `title`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memories_updated_at` ON `memories` (`updated_at`)")
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_tags` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`space_id` TEXT NOT NULL, `name` TEXT NOT NULL, `parent_id` INTEGER)",
+            )
+            database.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_memory_tags_space_id_name` ON `memory_tags` (`space_id`, `name`)",
+            )
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_tags_parent_id` ON `memory_tags` (`parent_id`)")
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_tag_refs` (" +
+                    "`memory_id` INTEGER NOT NULL, `tag_id` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`memory_id`, `tag_id`))",
+            )
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_tag_refs_tag_id` ON `memory_tag_refs` (`tag_id`)")
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_properties` (" +
+                    "`memory_id` INTEGER NOT NULL, `property_key` TEXT NOT NULL, " +
+                    "`property_value` TEXT NOT NULL, PRIMARY KEY(`memory_id`, `property_key`))",
+            )
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_links` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`space_id` TEXT NOT NULL, `source_id` INTEGER NOT NULL, `target_id` INTEGER NOT NULL, " +
+                    "`type` TEXT NOT NULL, `weight` REAL NOT NULL, `description` TEXT NOT NULL)",
+            )
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_links_source_id` ON `memory_links` (`source_id`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_links_target_id` ON `memory_links` (`target_id`)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS `index_memory_links_space_id` ON `memory_links` (`space_id`)")
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_chunks` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`memory_id` INTEGER NOT NULL, `chunk_index` INTEGER NOT NULL, " +
+                    "`content` TEXT NOT NULL, `embedding` BLOB)",
+            )
+            database.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_memory_chunks_memory_id_chunk_index` " +
+                    "ON `memory_chunks` (`memory_id`, `chunk_index`)",
+            )
+        }
+
+        internal val MIGRATION_24_25 = Migration(24, 25) { database ->
+            database.execSQL(
+                "CREATE TABLE IF NOT EXISTS `memory_auto_save_candidates` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`conversation_id` TEXT NOT NULL, `space_id` TEXT NOT NULL, " +
+                    "`user_text` TEXT NOT NULL, `assistant_text` TEXT NOT NULL, " +
+                    "`status` TEXT NOT NULL, `attempt_count` INTEGER NOT NULL, " +
+                    "`last_error` TEXT NOT NULL, " +
+                    "`created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_memory_auto_save_candidates_status` " +
+                    "ON `memory_auto_save_candidates` (`status`)",
+            )
+            database.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_memory_auto_save_candidates_conversation_id` " +
+                    "ON `memory_auto_save_candidates` (`conversation_id`)",
+            )
         }
 
         private fun createTextChunkCleanup(database: androidx.sqlite.db.SupportSQLiteDatabase) {

@@ -148,7 +148,8 @@ internal object AgentPromptBuilder {
             )
         }
         roleplayContext?.personaMessage()?.let(messages::put)
-        buildMemorySystemMessage(memoryContext, writable = roleplayContext == null)?.let(messages::put)
+        // 零注入：结构化记忆库的正文不进系统提示，模型通过 query_memory 等工具按需检索。
+        // 这样系统提示前缀保持稳定，prompt 缓存不会被记忆更新击穿。
         buildSkillSystemMessage(skillContext)?.let(messages::put)
         return messages
     }

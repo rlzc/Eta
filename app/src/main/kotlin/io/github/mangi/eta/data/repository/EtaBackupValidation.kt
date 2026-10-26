@@ -89,6 +89,9 @@ internal object EtaBackupValidation {
         if (document.conversationState != null && document.conversationState.id != ConversationStateEntity.SINGLETON_ID) {
             throw EtaBackupException("备份中的会话状态无效")
         }
-        if (document.memoryMd.toByteArray(Charsets.UTF_8).size > 1024 * 1024) throw EtaBackupException("MEMORY.md 超过 1 MiB 限制")
+        // 备份中的 memoryMd 现在可能同时包含旧 MEMORY.md 与记忆库条目两段，上限放宽到 8 MiB。
+        if (document.memoryMd.toByteArray(Charsets.UTF_8).size > 8 * 1024 * 1024) {
+            throw EtaBackupException("备份中的记忆内容超过 8 MiB 限制")
+        }
     }
 }

@@ -82,12 +82,19 @@ internal object EtaBackupRepository {
             val settings = SettingsDataStore.settings()
             val catalogRevision = SettingsDataStore.officialModelCatalogRevision()
             EtaBackupJsonStreams.export(appContext, output, onPhase = { phase = it }) { writer ->
+                val libraryMarkdown = MemoryBackupTransfer.exportLibrary(MemoryRepository(appContext))
                 database.withTransaction {
                     val dao = database.conversationDao()
                     val providers = database.providerDao().providers().map {
                         EtaBackupProvider(it.provider.withoutOAuthSecrets(), it.models)
                     }
                     val memory = AgentMemoryRepository.snapshot().content
+                    val backupMemory =
+                        if (libraryMarkdown.isBlank()) {
+                            memory
+                        } else {
+                            memory.trimEnd() + "\n\n" + libraryMarkdown
+                        }
                     writer.value("format", String.serializer(), EtaBackupDocument.FORMAT)
                     writer.value("schemaVersion", Int.serializer(), EtaBackupDocument.SCHEMA_VERSION)
                     writer.value("exportedAt", Long.serializer(), System.currentTimeMillis())
@@ -96,7 +103,7 @@ internal object EtaBackupRepository {
                     writer.value("selectedProviderId", String.serializer().nullable, settings.selectedProviderId)
                     writer.value("selectedModelId", String.serializer().nullable, settings.selectedModelId)
                     writer.value("conversationState", ConversationStateEntity.serializer().nullable, dao.state())
-                    writer.value("memoryMd", String.serializer(), memory)
+                    writer.value("memoryMd", String.serializer(), backupMemory)
                     val boundAvatars = linkedMapOf<String, String?>()
                     var conversationCount = 0
                     var messageCount = 0
@@ -203,7 +210,15 @@ internal object EtaBackupRepository {
                             phase = "restore_memory"
                             cancellation.ensureActive()
                             memoryWriteStarted = true
-                            AgentMemoryRepository.replaceAll(document.memoryMd)
+                            val (legacyMemory, libraryMemory) = MemoryBackupTransfer.split(document.memoryMd)
+                            AgentMemoryRepository.replaceAll(legacyMemory)
+                            runCatching {
+                                LegacyMemoryMigration(
+                                    java.io.File(appContext.filesDir, "memory"),
+                                    MemoryRepository(appContext),
+                                ).run(force = true)
+                                MemoryBackupTransfer.importLibrary(MemoryRepository(appContext), libraryMemory)
+                            }
                             document.roleplay?.let { CharacterBackupTransfer.restoreMemories(appContext, it) }
                             cancellation.ensureActive()
                         }

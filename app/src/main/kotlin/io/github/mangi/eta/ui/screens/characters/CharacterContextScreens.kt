@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.github.mangi.eta.data.repository.MemoryRepository
 import io.github.mangi.eta.ui.app.CharacterLibraryStore
 import io.github.mangi.eta.ui.components.EtaTextButton
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
@@ -27,9 +29,37 @@ internal fun CharacterPersonaScreen(store: CharacterLibraryStore, onBack: () -> 
 }
 
 @Composable
-internal fun CharacterMemoryScreen(id: String, store: CharacterLibraryStore, onBack: () -> Unit) {
+internal fun CharacterMemoryScreen(
+    id: String,
+    store: CharacterLibraryStore,
+    onBack: () -> Unit,
+    onOpenMemoryLibrary: (String) -> Unit = {},
+) {
+    LaunchedEffect(id) { store.loadMemorySpace(id) }
     MiuixScaffoldPage(title = "剧情记忆", onBack = onBack, modifier = Modifier.imePadding()) {
         item { CharacterPageMessage("记录这个角色的重要经历、关系与约定。它由此角色的各次对话共享，受记忆总开关控制。") }
+        item(key = "space") {
+            CharacterTextField(
+                label = "记忆空间（留空 = 角色私有空间 character:<id>）",
+                value = store.memorySpaceDraft,
+                onChange = store::updateMemorySpace,
+                enabled = !store.busy,
+                singleLine = true,
+            )
+            EtaTextButton(
+                text = "保存空间绑定",
+                onClick = { store.saveMemorySpace(id) },
+                enabled = !store.busy,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+        }
+        item(key = "library") {
+            EtaTextButton(
+                text = "在记忆库中查看该角色的空间",
+                onClick = { onOpenMemoryLibrary(MemoryRepository.characterSpaceId(id)) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
         item(key = "memory") {
             CharacterTextField("剧情与关系", store.memoryDraft, store::updateMemory, !store.busy, minLines = 10)
         }

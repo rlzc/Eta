@@ -66,7 +66,8 @@ sealed interface AppRoute : NavKey {
     data object DataBackup : AppRoute
 
     @Serializable
-    data object Memory : AppRoute
+    data class Memory(val spaceId: String? = null) : AppRoute
+    data object LegacyMemory : AppRoute
 
     @Serializable
     data object LinuxEnvironment : AppRoute

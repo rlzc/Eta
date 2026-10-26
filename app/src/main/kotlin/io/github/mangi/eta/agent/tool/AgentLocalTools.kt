@@ -21,6 +21,7 @@ import io.github.mangi.eta.agent.model.AgentScreenObservationContract
 import io.github.mangi.eta.agent.model.AgentSensitiveToolPolicy
 import io.github.mangi.eta.agent.model.AgentTerminalToolCatalog
 import io.github.mangi.eta.agent.model.AgentFileToolCatalog
+import io.github.mangi.eta.agent.model.MemoryLibraryToolCatalog
 import io.github.mangi.eta.agent.overlay.AgentHapticFeedback
 import io.github.mangi.eta.agent.overlay.AgentOverlayClearance
 import io.github.mangi.eta.agent.overlay.GestureIndicator
@@ -85,6 +86,7 @@ internal class AgentLocalTools(
         runBlocking { AgentMemoryRepository.isEnabled() }
     },
     private val memoryWritable: Boolean = true,
+    private val memoryLibraryTools: MemoryLibraryTools? = null,
     private val screenshotExcludedPackages: () -> Set<String> = { emptySet() },
     private val screenObservationProvider: (
         (AgentScreenObservationContract.Options) -> RootShellDeviceController.Observation
@@ -223,6 +225,10 @@ internal class AgentLocalTools(
                 in AgentFileToolCatalog.names -> textResult(terminalTool { terminalController.fileTool(toolCall.name, args) })
                 "memory_get" -> textResult(memoryGet(args))
                 "memory_write" -> textResult(memoryWrite(args))
+                in MemoryLibraryToolCatalog.names -> textResult(
+                    runBlocking { memoryLibraryTools?.execute(toolCall.name, args) }
+                        ?: errorResult("MEMORY_UNAVAILABLE", "记忆库未启用"),
+                )
                 "skills_list" -> textResult(skillsList(args))
                 "skills_read" -> textResult(skillsRead(args))
                 "skills_read_resource" -> textResult(skillsReadResource(args))

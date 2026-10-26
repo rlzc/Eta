@@ -1,5 +1,6 @@
 package io.github.mangi.eta
 
+import io.github.mangi.eta.agent.memory.MemoryAutoSaveScheduler
 import io.github.mangi.eta.agent.voice.SpeechOssUpload
 import android.app.Application
 import android.os.Handler
@@ -12,6 +13,8 @@ import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.datastore.SettingsDataStore
 import io.github.mangi.eta.data.repository.AgentMemoryRepository
+import io.github.mangi.eta.data.repository.LegacyMemoryMigration
+import io.github.mangi.eta.data.repository.MemoryRepository
 import io.github.mangi.eta.data.repository.AppearanceSettingsRepository
 import io.github.mangi.eta.data.repository.McpServerRepository
 import io.github.mangi.eta.data.repository.LinuxEnvironmentSettingsRepository
@@ -57,9 +60,20 @@ class EtaApp : Application(), XposedServiceHelper.OnServiceListener {
         }
         PredictiveBackController.apply(applicationInfo, predictiveBackEnabled)
         AgentMemoryRepository.init(this)
+        MemoryAutoSaveScheduler.start(this)
         ProviderRepository.init(this)
         McpServerRepository.init(this)
         XposedServiceHelper.registerListener(this)
+        applicationScope.launch {
+            runCatching {
+                LegacyMemoryMigration(
+                    java.io.File(filesDir, "memory"),
+                    MemoryRepository(this@EtaApp),
+                ).run()
+            }.onFailure { throwable ->
+                AndroidAgentLogger.warn("Legacy memory migration failed: type=${throwable.safeLogType()}")
+            }
+        }
         applicationScope.launch {
             try {
                 SpeechOssUpload(this@EtaApp).retryPending(this@EtaApp)

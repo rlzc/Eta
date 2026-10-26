@@ -21,6 +21,10 @@ internal data class RoleplayRunContext(
 ) {
     val characterName: String get() = card.name
 
+    /** 角色会话使用的记忆空间：角色卡指定优先，否则用角色私有空间。 */
+    val memorySpaceId: String
+        get() = card.memorySpaceId ?: "character:$characterId"
+
     fun personaMessage(): JSONObject = JSONObject().put("role", "system")
         .put(PERSONA_MARKER, true).put("content", personaPrompt("", ""))
 

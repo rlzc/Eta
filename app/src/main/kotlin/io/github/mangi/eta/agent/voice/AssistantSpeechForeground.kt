@@ -39,7 +39,7 @@ internal class AssistantSpeechForeground(private val service: Service) {
     fun stop() { service.stopForeground(Service.STOP_FOREGROUND_REMOVE) }
 
     companion object {
-        const val ACTION_STOP = "io.github.mangi.eta.STOP_ASSISTANT_SPEECH"
+        const val ACTION_STOP = "com.yochu.eta.STOP_ASSISTANT_SPEECH"
         private const val CHANNEL = "eta_assistant_speech"
         private const val NOTIFICATION_ID = 4203
     }

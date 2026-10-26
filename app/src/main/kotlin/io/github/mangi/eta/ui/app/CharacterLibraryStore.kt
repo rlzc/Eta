@@ -57,6 +57,8 @@ internal class CharacterLibraryStore(
     var greetingIndex by mutableStateOf(0)
     var memoryDraft by mutableStateOf("")
         private set
+    var memorySpaceDraft by mutableStateOf("")
+        private set
     var busy by mutableStateOf(false)
         private set
     var notice by mutableStateOf<String?>(null)
@@ -237,6 +239,24 @@ internal class CharacterLibraryStore(
         persona = normalized
         personaDraft = normalized
         onSaved()
+    }
+
+    fun loadMemorySpace(id: String) {
+        val profile = selected?.takeIf { it.id == id } ?: return
+        memorySpaceDraft = profile.card.memorySpaceId.orEmpty()
+    }
+
+    fun updateMemorySpace(value: String) {
+        if (!busy) memorySpaceDraft = value
+    }
+
+    fun saveMemorySpace(id: String) {
+        val profile = selected?.takeIf { it.id == id } ?: return
+        val spaceId = memorySpaceDraft.trim().takeIf { it.isNotEmpty() }
+        runOperation("记忆空间保存失败，请重试") {
+            io { CharacterRepository.save(profile.copy(card = profile.card.withMemorySpace(spaceId))) }
+            notice = if (spaceId == null) "已恢复为角色私有记忆空间" else "记忆空间已绑定到 $spaceId"
+        }
     }
 
     fun loadMemory(id: String, force: Boolean = false) {

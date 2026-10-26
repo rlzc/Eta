@@ -79,7 +79,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-internal const val ACTION_SPEECH_SETTINGS = "io.github.mangi.eta.OPEN_SPEECH_SETTINGS"
+internal const val ACTION_SPEECH_SETTINGS = "com.yochu.eta.OPEN_SPEECH_SETTINGS"
 
 internal fun openSpeechSettings(context: Context) {
     context.startActivity(

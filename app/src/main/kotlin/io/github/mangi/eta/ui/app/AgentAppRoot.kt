@@ -78,6 +78,9 @@ import io.github.mangi.eta.ui.screens.home.AgentHomeScreen
 import io.github.mangi.eta.ui.screens.mcp.McpServerDetailScreen
 import io.github.mangi.eta.ui.screens.mcp.McpServersScreen
 import io.github.mangi.eta.ui.screens.memory.AgentMemoryScreen
+import io.github.mangi.eta.ui.screens.memory.MemoryLibraryAction
+import io.github.mangi.eta.ui.screens.memory.MemoryLibraryScreen
+import io.github.mangi.eta.ui.screens.memory.LegacyMemoryScreen
 import io.github.mangi.eta.ui.screens.permissions.PermissionHealthScreen
 import io.github.mangi.eta.ui.screens.skills.AgentSkillsScreen
 import io.github.mangi.eta.ui.screens.terminal.LinuxEnvironmentScreen
@@ -150,6 +153,7 @@ fun AgentAppRoot(
     }
     val skills = appViewModel.skills
     val memory = appViewModel.memory
+    val memoryLibrary = appViewModel.memoryLibrary
     val permissionHealth = appViewModel.permissionHealth
     val toolsState = remember { buildToolsState(context) }
     val characterStore = viewModel<CharacterLibraryViewModel>().store
@@ -515,7 +519,9 @@ fun AgentAppRoot(
                 LaunchedEffect(route.characterId, backStack.lastOrNull() == route) {
                     if (backStack.lastOrNull() == route) characterStore.loadMemory(route.characterId)
                 }
-                CharacterMemoryScreen(route.characterId, characterStore, ::popRoute)
+                CharacterMemoryScreen(route.characterId, characterStore, ::popRoute) { spaceId ->
+                    pushRoute(AppRoute.Memory(spaceId))
+                }
             }
             entry<AppRoute.Permissions>(swipeDismiss = swipeDismiss) {
                 LaunchedEffect(Unit) {
@@ -676,23 +682,44 @@ fun AgentAppRoot(
                     onImport = agentState::importBackup,
                 )
             }
-            entry<AppRoute.Memory>(swipeDismiss = swipeDismiss) {
-                LaunchedEffect(Unit) {
-                    memory.refreshMemory()
+            entry<AppRoute.Memory>(swipeDismiss = swipeDismiss) { route ->
+                LaunchedEffect(route.spaceId) {
+                    memoryLibrary.refresh(route.spaceId)
                 }
-                AgentMemoryScreen(
-                    state = memory.memoryState,
+                MemoryLibraryScreen(
+                    state = memoryLibrary.state,
                     onAction = { action ->
                         when (action) {
-                            AgentMemoryAction.NavigateBack -> popRoute()
-                            is AgentMemoryAction.ToggleEnabled -> memory.setMemoryEnabled(action.enabled)
-                            is AgentMemoryAction.DraftChanged -> memory.updateMemoryDraft(action.content)
-                            AgentMemoryAction.Save -> memory.saveMemory()
-                            AgentMemoryAction.Clear -> memory.clearMemory()
-                            AgentMemoryAction.DismissNotice -> memory.dismissMemoryNotice()
+                            MemoryLibraryAction.Back -> popRoute()
+                            is MemoryLibraryAction.SelectSpace -> memoryLibrary.selectSpace(action.id)
+                            is MemoryLibraryAction.QueryChanged -> memoryLibrary.setQuery(action.query)
+                            is MemoryLibraryAction.SetScoreMode -> memoryLibrary.setScoreMode(action.mode)
+                            MemoryLibraryAction.Search -> memoryLibrary.search()
+                            MemoryLibraryAction.BeginCreate -> memoryLibrary.beginCreate()
+                            is MemoryLibraryAction.BeginEdit -> memoryLibrary.beginEdit(action.id)
+                            is MemoryLibraryAction.TitleChanged ->
+                                memoryLibrary.updateDraft { it.copy(title = action.value) }
+                            is MemoryLibraryAction.ContentChanged ->
+                                memoryLibrary.updateDraft { it.copy(content = action.value) }
+                            is MemoryLibraryAction.TagsChanged ->
+                                memoryLibrary.updateDraft { it.copy(tags = action.value) }
+                            is MemoryLibraryAction.FolderChanged ->
+                                memoryLibrary.updateDraft { it.copy(folderPath = action.value) }
+                            is MemoryLibraryAction.ImportanceChanged ->
+                                memoryLibrary.updateDraft {
+                                    it.copy(importance = action.value.toFloatOrNull() ?: it.importance)
+                                }
+                            MemoryLibraryAction.Save -> memoryLibrary.save()
+                            MemoryLibraryAction.Delete -> memoryLibrary.delete()
+                            MemoryLibraryAction.CancelEdit -> memoryLibrary.cancelEdit()
+                            MemoryLibraryAction.DismissNotice -> memoryLibrary.dismissNotice()
+                            MemoryLibraryAction.OpenLegacyMemory -> pushRoute(AppRoute.LegacyMemory)
                         }
                     },
                 )
+            }
+            entry<AppRoute.LegacyMemory>(swipeDismiss = swipeDismiss) {
+                LegacyMemoryScreen(onBack = ::popRoute)
             }
             entry<AppRoute.LinuxEnvironment>(swipeDismiss = swipeDismiss) {
                 LinuxEnvironmentScreen(

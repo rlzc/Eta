@@ -137,7 +137,7 @@ internal class AgentExecutionService : Service() {
     companion object {
         private const val CHANNEL = "eta_execution"
         private const val NOTIFICATION_ID = 1107
-        private const val ACTION_STOP = "io.github.mangi.eta.action.STOP_USER_EXECUTION"
+        private const val ACTION_STOP = "com.yochu.eta.action.STOP_USER_EXECUTION"
         private val leases = ExecutionLeaseRegistry()
         private val ownerSequence = AtomicLong()
         private val mainHandler = Handler(Looper.getMainLooper())

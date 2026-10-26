@@ -306,9 +306,16 @@ internal object AgentMemoryRepository {
     @Volatile
     private lateinit var store: AgentMemoryStore
 
+    @Volatile
+    private var storeRoot: File? = null
+
     fun init(context: Context) {
-        if (!::store.isInitialized) {
-            store = AgentMemoryStore(context.applicationContext.filesDir)
+        val root = context.applicationContext.filesDir
+        // Robolectric 会按测试类切换沙箱目录；root 变化时必须重建 store，
+        // 否则后续测试会继续读写上一个沙箱里的文件。
+        if (!::store.isInitialized || storeRoot != root) {
+            store = AgentMemoryStore(root)
+            storeRoot = root
         }
     }
 

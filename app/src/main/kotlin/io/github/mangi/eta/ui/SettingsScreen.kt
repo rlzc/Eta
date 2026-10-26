@@ -302,7 +302,7 @@ private fun SettingsPageContent(
                                 tint = EtaPreferenceColors.Orange,
                             )
                         },
-                        onClick = { onNavigate(AppRoute.Memory) },
+                        onClick = { onNavigate(AppRoute.Memory()) },
                     )
 
                     EtaPreferenceDivider()

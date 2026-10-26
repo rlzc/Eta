@@ -1324,7 +1324,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         private val keepScreenOnState = MutableStateFlow(false)
         val keepScreenOn = keepScreenOnState.asStateFlow()
 
-        private const val ACTION_KEEP_ALIVE = "io.github.mangi.eta.agent.runtime.KEEP_ALIVE"
+        private const val ACTION_KEEP_ALIVE = "com.yochu.eta.agent.runtime.KEEP_ALIVE"
         private const val HIDE_DELAY_MS = 2_500L
         private const val RESULT_REVIEW_DELAY_MS = 120_000L
         private const val RESULT_CARD_HEIGHT_RATIO = 0.5f

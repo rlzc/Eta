@@ -23,7 +23,9 @@ import io.github.mangi.eta.agent.skill.SkillCompatibilityChecker
 import io.github.mangi.eta.agent.skill.SkillContext
 import io.github.mangi.eta.agent.skill.SkillRuntime
 import io.github.mangi.eta.agent.skill.PublicGitHubSkillSource
+import io.github.mangi.eta.agent.memory.OpenAiEmbeddingProvider
 import io.github.mangi.eta.agent.tool.AgentLocalTools
+import io.github.mangi.eta.agent.tool.MemoryLibraryTools
 import io.github.mangi.eta.agent.tool.AgentToolRequirements
 import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.agent.tool.PendingSkillConflictCapabilityParser
@@ -32,6 +34,8 @@ import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
 import io.github.mangi.eta.data.repository.AgentMemoryRepository
+import io.github.mangi.eta.data.repository.MemoryRepository
+import io.github.mangi.eta.data.repository.MemoryAutoSaveService
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -79,6 +83,9 @@ internal class AgentRuntimeRunExecutor(
 
         // 失败清理需要在 try 外拿到会话 id。
         var memoryConversationId: String? = null
+        // 自动保存同样需要在 try 外使用：会话完成回调在 try 之后。
+        var memoryLibraryAutoSaveEnabled = false
+        var memoryLibraryAutoSaveSpaceId: String? = null
         val result = try {
             val contextWindow = request.config.knownContextWindow
             checkpointRecorder = AgentRunCheckpointRecorder.create(appContext, request)
@@ -159,6 +166,24 @@ internal class AgentRuntimeRunExecutor(
                 }
             }
             val mcpTools = JSONArray().also(mcpSnapshot::appendModelTools)
+            val memoryLibrarySpaceId =
+                roleplayContext?.memorySpaceId ?: MemoryRepository.GLOBAL_SPACE_ID
+            val memoryLibraryTools =
+                if (memoryEnabled) {
+                    val memoryRepository =
+                        MemoryRepository(
+                            EtaDatabase.get(appContext).memoryDao(),
+                            EtaDatabase.get(appContext).memorySpaceDao(),
+                            OpenAiEmbeddingProvider.fromConfig(
+                                runCatching { AgentModelClient.loadConfig() }.getOrNull(),
+                            ),
+                        )
+                    MemoryLibraryTools(memoryRepository, memoryLibrarySpaceId)
+                } else {
+                    null
+                }
+            memoryLibraryAutoSaveEnabled = memoryLibraryTools != null
+            memoryLibraryAutoSaveSpaceId = memoryLibrarySpaceId
             val executor = AgentLocalTools(
                 context = appContext,
                 logger = AndroidAgentLogger,
@@ -183,7 +208,8 @@ internal class AgentRuntimeRunExecutor(
                 memoryToolsEnabled = {
                     runBlocking { AgentMemoryRepository.isEnabled() }
                 },
-                memoryWritable = roleplayContext == null,
+                memoryWritable = true,
+                memoryLibraryTools = memoryLibraryTools,
                 screenshotExcludedPackages = {
                     entrySurfaceGuard?.consumeScreenshotExcludedPackages().orEmpty()
                 },
@@ -396,6 +422,31 @@ internal class AgentRuntimeRunExecutor(
                         "Agent runtime artifact persistence failed: type=${throwable.safeLogType()}"
                     )
                 }
+            if (result.ok && memoryLibraryAutoSaveEnabled) {
+                runCatching {
+                    val conversation = memoryConversationId
+                    if (conversation != null) {
+                        val autoSave =
+                            MemoryAutoSaveService(
+                                MemoryRepository(appContext),
+                                EtaDatabase.get(appContext).memoryAutoSaveDao(),
+                            )
+                        runBlocking {
+                            autoSave.enqueue(
+                                conversationId = conversation,
+                                spaceId = memoryLibraryAutoSaveSpaceId
+                                    ?: MemoryRepository.GLOBAL_SPACE_ID,
+                                userText = request.prompt,
+                                assistantText = result.content,
+                            )
+                        }
+                    }
+                }.onFailure { throwable ->
+                    AndroidAgentLogger.warnThrottled("memory_auto_save_enqueue_failed") {
+                        "Memory auto-save enqueue failed: type=${throwable.safeLogType()}"
+                    }
+                }
+            }
         }
         return Outcome(
             result = result,
